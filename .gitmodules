@@ -1,0 +1,3 @@
+[submodule "Blazorade-MSAL"]
+	path = Blazorade-MSAL
+	url = https://github.com/Blazorade/Blazorade-MSAL.git
