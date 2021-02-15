@@ -1,0 +1,6 @@
+﻿@page "/login"
+@inject NavigationManager NavMan
+
+<LoginRedirectHandler OnLoginSucceeded='() => this.NavMan.NavigateTo("/msal-demo")'>
+    <p>Processing login. Please hang in there...</p>
+</LoginRedirectHandler>

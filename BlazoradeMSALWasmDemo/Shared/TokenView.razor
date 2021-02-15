@@ -1,0 +1,153 @@
+﻿@inject BlazoradeMsalService msalService
+
+@code {
+
+    private string scopeString = null;
+    private string loginHint = null;
+    private AuthenticationResult token = null;
+    private bool isLoading = false;
+    private List<Exception> errors = new List<Exception>();
+
+    protected async override Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (firstRender)
+        {
+            this.BeginLoading();
+            try
+            {
+                this.token = await this.msalService.AcquireTokenSilentAsync(fallbackToDefaultLoginHint: true);
+            }
+            catch { }
+            finally
+            {
+                await this.SetUIFromTokenAsync();
+                this.EndLoading();
+            }
+        }
+    }
+
+    private async Task GetTokenAsync(MouseEventArgs e)
+    {
+        await this.GetTokenAsync();
+    }
+
+    private async Task GetTokenAsync(LoginPrompt? prompt = null)
+    {
+        this.BeginLoading();
+
+        try
+        {
+            var scopes = (this.scopeString ?? "").Split(',');
+            this.token = await this.msalService.AcquireTokenAsync(loginHint: this.loginHint, scopes: scopes, prompt: prompt);
+        }
+        catch (Exception ex)
+        {
+            this.errors.Add(ex);
+        }
+
+        await this.SetUIFromTokenAsync();
+
+        this.EndLoading();
+    }
+
+    private async Task LogoutAsync(MouseEventArgs e)
+    {
+        await this.msalService.LogoutAsync();
+    }
+
+    private void BeginLoading()
+    {
+        this.isLoading = true;
+        this.StateHasChanged();
+    }
+
+    private void EndLoading()
+    {
+        this.isLoading = false;
+        this.StateHasChanged();
+    }
+
+    private async Task SetUIFromTokenAsync()
+    {
+        try
+        {
+            if (null != this.token)
+            {
+                this.loginHint = this.token.Account?.UserName;
+                this.scopeString = string.Join(',', this.token.Scopes);
+            }
+            else
+            {
+                this.loginHint = await this.msalService.GetDefaultLoginHintAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            this.errors.Add(ex);
+        }
+    }
+
+}
+
+<div class="input-group">
+    <input type="text" name="login-hint" class="form-control" placeholder="Optional. Type in a login hint." @bind-value="this.loginHint" @bind-value:event="oninput" />
+    <input type="text" name="scopes" class="form-control" placeholder="Optional. Comma-separated list of tokens to acquire." @bind-value="this.scopeString" @bind-value:event="oninput" />
+    <div class="input-group-append">
+        <button type="button" class="btn btn-primary" @onclick="this.GetTokenAsync">
+            @if (this.isLoading)
+            {
+                <span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
+            }
+            <span>Get Token</span>
+        </button>
+        <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown">
+        </button>
+        <div class="dropdown-menu">
+            <button class="dropdown-item" type="button" @onclick="async (e) => await this.GetTokenAsync(LoginPrompt.Login)">Prompt Login</button>
+            <button class="dropdown-item" type="button" @onclick="async (e) => await this.GetTokenAsync(LoginPrompt.Consent)">Prompt Consent</button>
+            <button class="dropdown-item" type="button" @onclick="async (e) => await this.GetTokenAsync(LoginPrompt.SelectAccount)">Prompt Select Account</button>
+            <button class="dropdown-item" type="button" @onclick="async (e) => await this.GetTokenAsync(LoginPrompt.None)">Prompt None</button>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" @onclick="this.LogoutAsync">Log Out</button>
+    </div>
+</div>
+
+@if (null != this.token)
+{
+    <h2>Token for: @this.token.Account?.Name</h2>
+    <ul>
+        <li>Account Name: @this.token.Account?.Name</li>
+        <li>Account Username: @this.token.Account?.UserName</li>
+        <li>Authority: @this.token.Authority</li>
+        <li>Expires On: @this.token.ExpiresOn</li>
+        <li>Scopes: @string.Join(", ", this.token.Scopes?.ToArray() ?? new string[0])</li>
+        <li>
+            Access Token: @this.token.AccessToken?.Length chars
+            @if (this.token.AccessToken?.Length > 0)
+            {
+                <span>[<a href="https://jwt.ms/#access_token=@this.token.AccessToken" target="access-token">view</a>]</span>
+            }
+
+        </li>
+        <li>
+            Id Token: @this.token.IdToken?.Length chars
+            @if (this.token.IdToken?.Length > 0)
+            {
+                <span>[<a href="https://jwt.ms/#id_token=@this.token.IdToken" target="id-token">view</a>]</span>
+            }
+        </li>
+    </ul>
+}
+
+@if (this.errors.Count > 0)
+{
+    <h3>Errors</h3>
+
+    @foreach (var ex in this.errors)
+    {
+        <pre>@ex.ToString()</pre>
+        <hr />
+    }
+}
